@@ -1,51 +1,31 @@
 #include <windows.h>
+#include <tuple>
 
-void sendKeyPress(bool down, int key) {
-    INPUT input;
-    input.type = INPUT_KEYBOARD;
-    input.ki.time = 0;
-    if (down) {
-        input.ki.dwFlags = KEYEVENTF_SCANCODE;
-    } else {
-        input.ki.dwFlags = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
-    }
-    input.ki.wScan = MapVirtualKey(key, MAPVK_VK_TO_VSC);
-    input.ki.wVk = 0;
-
-    input.ki.dwExtraInfo = 0;
-    SendInput(1, &input, sizeof(INPUT));
-}
-
-extern "C" {
-__declspec(dllexport) void __cdecl sendKey(bool, int);
-}
-
-// https://docs.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
-// ENTER: 13
-// ESCAPE: 27
-// SPACE: 32
-// LEFT: 37
-// UP: 38
-// RIGHT: 39
-// DOWN: 40
-// DELETE: 46
-extern void __cdecl sendKey(bool down, int key) {
-    sendKeyPress(down, key);
-}
-
-extern "C" {
-__declspec(dllexport) void __cdecl moveMouse(int, int);
-}
-
-extern void __cdecl moveMouse(int x, int y) {
+std::tuple<int, int> screenToAbsolute(int x, int y) {
+    // multi monitor support
+    int offsetTop = abs(GetSystemMetrics(SM_YVIRTUALSCREEN));
+    int offsetLeft = abs(GetSystemMetrics(SM_XVIRTUALSCREEN));
     int screenWidth = GetSystemMetrics(SM_CXVIRTUALSCREEN);
     int screenHeight = GetSystemMetrics(SM_CYVIRTUALSCREEN);
+    x += offsetLeft;
+    y += offsetTop;
+    int absX = (x * 65535) / (screenWidth - 1);
+    int absY = (y * 65535) / (screenHeight - 1);
+    return {absX, absY};
+}
+
+extern "C" {
+[[maybe_unused]] __declspec(dllexport) void __cdecl moveMouse(int, int);
+}
+
+[[maybe_unused]] extern void __cdecl moveMouse(int x, int y) {
+    auto[absX, absY] = screenToAbsolute(x, y);
 
     // Move mouse
     INPUT input = {0};
     input.type = INPUT_MOUSE;
-    input.mi.dx = (x * 65535) / (screenWidth - 1);
-    input.mi.dy = (y * 65535) / (screenHeight - 1);
+    input.mi.dx = absX;
+    input.mi.dy = absY;
     input.mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_VIRTUALDESK | MOUSEEVENTF_ABSOLUTE;
     input.mi.mouseData = 0;
     input.mi.time = 0;
@@ -55,18 +35,17 @@ extern void __cdecl moveMouse(int x, int y) {
 }
 
 extern "C" {
-__declspec(dllexport) void __cdecl clickPos(bool, int, int);
+[[maybe_unused]] __declspec(dllexport) void __cdecl clickPos(bool, int, int);
 }
 
-extern void __cdecl clickPos(bool left, int x, int y) {
-    int screenWidth = GetSystemMetrics(SM_CXVIRTUALSCREEN);
-    int screenHeight = GetSystemMetrics(SM_CYVIRTUALSCREEN);
+[[maybe_unused]] extern void __cdecl clickPos(bool left, int x, int y) {
+    auto[absX, absY] = screenToAbsolute(x, y);
 
     // Move mouse
     INPUT input = {0};
     input.type = INPUT_MOUSE;
-    input.mi.dx = (x * 65535) / (screenWidth - 1);
-    input.mi.dy = (y * 65535) / (screenHeight - 1);
+    input.mi.dx = absX;
+    input.mi.dy = absY;
     input.mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_VIRTUALDESK | MOUSEEVENTF_ABSOLUTE;
     input.mi.mouseData = 0;
     input.mi.time = 0;
@@ -95,10 +74,10 @@ extern void __cdecl clickPos(bool left, int x, int y) {
 }
 
 extern "C" {
-__declspec(dllexport) void __cdecl click(bool);
+[[maybe_unused]] __declspec(dllexport) void __cdecl click(bool);
 }
 
-extern void __cdecl click(bool left) {
+[[maybe_unused]] extern void __cdecl click(bool left) {
     INPUT input = {0};
     // down
     input.type = INPUT_MOUSE;
